@@ -5,7 +5,7 @@ local TableTrace = {}
 
 local BiMap = require("LuaTools.BiMap") ---@type FishyLibs_BiMap
 
--- 给定一个表tBefore和被修改过后的结果tAfter，成员追踪器能够确定发生了如何的修改
+-- 给定一个表tBefore和被修改过后的结果tAfter, 成员追踪器能够确定发生了如何的修改
 -- 包括新增和删除的成员、已有的成员发生了怎样的移动
 -- 主要还是用于数组
 
@@ -30,11 +30,11 @@ local BiMap = require("LuaTools.BiMap") ---@type FishyLibs_BiMap
 ---@field removedKeys   any[]                  被删除的key
 
 ---@class ArrayTraceResult
----@field removes   TableDiffRemoveInfo[]      先remove，该数组保证每个key从大到小排列，故一次遍历依次删除即可
----@field inserts   TableDiffAddInfo[]         再insert，该数组保证每个key从小到大排列，故一次遍历依次插入即可
----@field swaps     table<number, number>[]     再swap，该数组保证从前往后遍历并执行swap操作即可得到结果
+---@field removes   TableDiffRemoveInfo[]      先remove, 该数组保证每个key从大到小排列, 故一次遍历依次删除即可
+---@field inserts   TableDiffAddInfo[]         再insert, 该数组保证每个key从小到大排列, 故一次遍历依次插入即可
+---@field swaps     table<number, number>[]     再swap, 该数组保证从前往后遍历并执行swap操作即可得到结果
 
----为一个表创建key<->identity的双向map，用于追踪表变更
+---为一个表创建key<->identity的双向map, 用于追踪表变更
 ---@return BiMap
 ---@param identityFunc fun(key, value):number
 function TableTrace.MakeKeyIdentityMap(t, identityFunc)
@@ -46,7 +46,7 @@ function TableTrace.MakeKeyIdentityMap(t, identityFunc)
 end
 
 
----寻找两个表之间的不同，表需要先通过IdentityFunc处理，从 key->data 转化为 key->identity 的形式方便比较
+---寻找两个表之间的不同, 表需要先通过IdentityFunc处理, 从 key->data 转化为 key->identity 的形式方便比较
 ---@param kiMapBefore BiMap
 ---@param kiMapAfter BiMap
 ---@return TableDiffResult
@@ -106,7 +106,7 @@ function TableTrace.MakeTracer(identityFunc)
         _baseKIMap = BiMap.Create()
     }
 
-    ---传入修改过的表内容，得到和比较基准之间的差异，包括成员的新增、删除、key变更
+    ---传入修改过的表内容, 得到和比较基准之间的差异, 包括成员的新增、删除、key变更
     tableTracerObj.Diff = function(self, after)
         local newKIMap = TableTrace.MakeKeyIdentityMap(after, identityFunc)
         return TableTrace.Diff(self._baseKIMap, newKIMap)
@@ -117,7 +117,7 @@ function TableTrace.MakeTracer(identityFunc)
         self._baseKIMap = TableTrace.MakeKeyIdentityMap(t, identityFunc)
     end
 
-    ---将更新过的表和之前的进行比较，返回产生了哪些改动，并将新表的内容设置为之后用于比较的基准
+    ---将更新过的表和之前的进行比较, 返回产生了哪些改动, 并将新表的内容设置为之后用于比较的基准
     tableTracerObj.DiffAndUpdate = function(self, new)
         local result = self:Diff(new)
         self:SetBase(new)

@@ -6,13 +6,12 @@ local Safe = require("LuaTools.Safe")
 
 --#region 工具函数
 
-local Log = function(...) LogUtil.LogInfo("[DebugHook]   ",...) end
+local Log = function(...) print("[DebugHook]   ",...) end
 
-local LuaPanda = require "DFM.YxFramework.Plugin.LuaPanda.LuaPanda"
-local BreakpointImpl = LuaPanda.BP
+local BreakpointImpl = function()end
 
 ---把一个表中的某个key的元素移动到另一个表。
----getter和setter是满足__index和__newindex定义的函数，用于实际执行移动操作。
+---getter和setter是满足__index和__newindex定义的函数, 用于实际执行移动操作。
 ---默认使用rawget和rawset
 local function MoveField(from, to, key, getter, setter)
     getter = getter and getter or rawget
@@ -23,7 +22,7 @@ local function MoveField(from, to, key, getter, setter)
 end
 
 ---把一个表中满足条件的字段移动到另一个表
----要求：字段要能够用next枚举
+---要求: 字段要能够用next枚举
 ---@param predicate function 接收key, 返回bool决定是否移动该项
 local function MoveMatchingFields(from, to, predicate, getter, setter)
     local k, v = next(from, nil)
@@ -39,8 +38,8 @@ local function MoveMatchingFields(from, to, predicate, getter, setter)
     end
 end
 
----将obj的元表替换为元表的拷贝，使其不和任何其他对象共享元表。返回新元表。
----要求：obj的元表应当不包含运行时可变的数据
+---将obj的元表替换为元表的拷贝, 使其不和任何其他对象共享元表。返回新元表。
+---要求: obj的元表应当不包含运行时可变的数据
 local function MakeUniqueMeta(obj)
     local mt = getmetatable(obj)
     mt = mt and mt or {}
@@ -71,14 +70,14 @@ end
 --#region 类型定义
 
 ---@class DebugHookDefinition
----@field fieldFilter fun(key:any):bool
+---@field fieldFilter fun(key:any):boolean
 ---@field readHook fun(obj:any, key:any, value:any) | nil
 ---@field writeHook fun(obj:any, key:any, value:any) | nil
 ---@field subTableHookPolicies SubTableHookPolicy[] | nil
 
 ---@class SubTableHookPolicy
----@field policyMatcher fun(key:any):bool | nil | any[] 可以是接收key返回bool的匹配函数，可以是any[]表示可精确匹配的key，也可以留空表示无条件匹配
----@field hookDef DebugHookDefinition | string 可以是DebugHookDefinition或字符串"inherit"，代表使用和上一层完全一致的DebugHookDefinition
+---@field policyMatcher fun(key:any):boolean | nil | any[] 可以是接收key返回bool的匹配函数, 可以是any[]表示可精确匹配的key, 也可以留空表示无条件匹配
+---@field hookDef DebugHookDefinition | string 可以是DebugHookDefinition或字符串"inherit", 代表使用和上一层完全一致的DebugHookDefinition
 
 ---@class DebugHookInfo
 ---@field hookOwner table
@@ -119,6 +118,7 @@ local function FindSubDebugHookDef(key, hookDef)
             if policy.hookDef == "inherit" then
                 return hookDef
             else
+                ---@diagnostic disable-next-line: return-type-mismatch
                 return policy.hookDef
             end
         end
@@ -134,7 +134,7 @@ function DebugHook.IndexHook(obj, key)
 
     --Log("Field ", tostring(key), " is being indexed:")
 
-    --该字段不属于隐藏字段，直接用原index
+    --该字段不属于隐藏字段, 直接用原index
     if not hookInfo.hookDef.fieldFilter(key)then
         --Log("    field is not hidden, use original index function. value = ", tostring(originalIndex(obj, key)))
         return hookInfo.originalIndex(obj, key)
@@ -144,16 +144,16 @@ function DebugHook.IndexHook(obj, key)
     --Log("    hidden value = ", tostring(val))
 
     if not val then
-        --隐藏字段表中没有该字段，分两种情况
-        --第一种情况是该字段是存储属性，且确实不存在，调用originalIndex也应当返回nil，符合预期
-        --第二种情况是该字段是一个计算属性（不实际存在，在originalIndex中计算并返回），也应当直接调用originalIndex
+        --隐藏字段表中没有该字段, 分两种情况
+        --第一种情况是该字段是存储属性, 且确实不存在, 调用originalIndex也应当返回nil, 符合预期
+        --第二种情况是该字段是一个计算属性(不实际存在, 在originalIndex中计算并返回), 也应当直接调用originalIndex
         val = hookInfo.originalIndex(obj, key)
         --Log("    this might be a calculated field, try original index function. value = ", tostring(val))
     end
 
     if hookInfo.hookDef.readHook then hookInfo.hookDef.readHook(obj, key, val) end
 
-    --返回给外部之前看如果取的子表符合SubTableHookPolicy，则需要进一步hook
+    --返回给外部之前看如果取的子表符合SubTableHookPolicy, 则需要进一步hook
     if type(val) == "table" and hookInfo.hookDef.subTableHookPolicies then
         local subHookDef = FindSubDebugHookDef(key, hookInfo.hookDef)
         if subHookDef ~= nil then
@@ -168,7 +168,7 @@ function DebugHook.NewindexHook(obj, key, value)
     local hookInfo = hookInfoTable[obj]
     --Log("Field ", tostring(key), " is being written:")
 
-    --该字段不属于隐藏字段，直接用原newindex
+    --该字段不属于隐藏字段, 直接用原newindex
     if not hookInfo.hookDef.fieldFilter(key) then
         hookInfo.originalNewindex(obj, key, value)
         --Log("    field is not hidden, use original newindex function. value = ", tostring(value))
@@ -176,7 +176,7 @@ function DebugHook.NewindexHook(obj, key, value)
     end
 
     --这里不应该直接将value写到隐藏表中。
-    --合理的方式是先调用原来的newindex，原newindex函数可能会写入该字段，也可能不写入而只是进行某些操作
+    --合理的方式是先调用原来的newindex, 原newindex函数可能会写入该字段, 也可能不写入而只是进行某些操作
     --只有在原newindex实际创建了该字段的情况下才将其移到隐藏表中
     hookInfo.originalNewindex(obj, key, value)
     --Log("    field is hidden, use original newindex function first, value = ", tostring(value))
@@ -234,6 +234,7 @@ function DebugHook.HookInternal(obj, hookRoot, hookName, hookPath, hookDef)
     local mt = MakeUniqueMeta(obj)
 
     ---@type DebugHookInfo
+    ---@diagnostic disable-next-line: missing-fields
     local hookInfo = {}
     hookInfoTable[obj] = hookInfo
 
@@ -252,7 +253,7 @@ function DebugHook.HookInternal(obj, hookRoot, hookName, hookPath, hookDef)
     --这一部分处理子表hook
     for k, v in pairs(hookInfo.hiddenFields) do
         if type(v) == "table" then
-            local subHookDef =  FindSubDebugHookDef(key, hookDef)
+            local subHookDef =  FindSubDebugHookDef(k, hookDef)
             if subHookDef then 
                 DebugHook.HookInternal(v, obj, hookName, CopyAppend(hookPath, k), subHookDef)
             end
@@ -275,7 +276,7 @@ function DebugHook.Hook(obj, hookName, hookDef)
     return DebugHook.HookInternal(obj, obj, hookName, {}, hookDef)
 end
 
----返回最初被hook的表，hook根名称，以及该表相对于最初被hook的表的路径数组
+---返回最初被hook的表, hook根名称, 以及该表相对于最初被hook的表的路径数组
 function DebugHook.GetHookedTablePathInfo(obj)
     local hookInfo = hookInfoTable[obj]
     if not hookInfo then return end
@@ -291,7 +292,7 @@ function DebugHook.PathArrayToString(path)
     return result
 end
 
----传入obj(被hook的表)和一个key，返回从hookRoot一直到该key的路径字符串
+---传入obj(被hook的表)和一个key, 返回从hookRoot一直到该key的路径字符串
 ---在readHook和writeHook里面使用比较方便
 function DebugHook.QuickGetPath(obj, key)
     local hookRoot, rootName, pathToRoot = DebugHook.GetHookedTablePathInfo(obj)
@@ -308,7 +309,7 @@ function DebugHook.DataBreakpoint(targetFullPath, obj, key, value, predicate)
     table.insert(changedFullPath, 1, hookRoot)
     table.insert(changedFullPath, key)
 
-    ---changedFullPath要么targetFullPath相等，要么位于targetFullPath之上的层级
+    ---changedFullPath要么targetFullPath相等, 要么位于targetFullPath之上的层级
     if not (#changedFullPath <= #targetFullPath) then return false end
     for i = 1, #changedFullPath do
         if not rawequal(changedFullPath[i], targetFullPath[i]) then return false end
@@ -332,18 +333,18 @@ function DebugHook.DataBreakpoint(targetFullPath, obj, key, value, predicate)
 
     if bBreak then
         Log("Data breakpoint triggered! ---------------------------------------")
-        BreakpointImpl() ---直接在这一行加个断点，或者调试工具允许的话在BreakpointImpl里面调用调试器触发断点的接口
+        BreakpointImpl() ---直接在这一行加个断点, 或者调试工具允许的话在BreakpointImpl里面调用调试器触发断点的接口
     end
 end
 
 
---#region 各种Hook预设，可以直接调用
+--#region 各种Hook预设, 可以直接调用
 
 ---@class DebugHook_Presets
 DebugHook.Presets = {}
 
----@param bAlsoLogWrites boolean 开启则会额外调用默认写入hook，打出日志
----@param bpDefs table<string, function | any | nil> 数据断点定义表，如 { ["fieldA.fieldB.fieldC"] = function(fieldC) return fieldC == value end, ... }
+---@param bAlsoLogWrites boolean 开启则会额外调用默认写入hook, 打出日志
+---@param bpDefs table<string, function | any | nil> 数据断点定义表, 如 { ["fieldA.fieldB.fieldC"] = function(fieldC) return fieldC == value end, ... }
 function DebugHook.Presets.WriteDataBreakpoint(bAlsoLogWrites, bpDefs)
     return function(obj, key, value)
         if bAlsoLogWrites then

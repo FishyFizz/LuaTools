@@ -56,8 +56,8 @@ function BiMap.Create(fromDataName, toDataName)
         return self:ToFirst(second) ~= nil
     end
 
-    ---@param map table 要建立双映射的单映射表，表的所有权将会被转移给BiMap!
-    ---@param bReversed bool | nil 默认false，表示提供的map内容是first->second，使用bReversed表示提供map的内容是second->first
+    ---@param map table 要建立双映射的单映射表, 表的所有权将会被转移给BiMap!
+    ---@param bReversed boolean | nil 默认false, 表示提供的map内容是first->second, 使用bReversed表示提供map的内容是second->first
     ---@return BiMap
     function biMapObj:InitBySingleMap(map, bReversed)
         self.forwardMap = map
