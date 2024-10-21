@@ -16,8 +16,8 @@ end
 
 ---@class ReactEntry
 ---@field getter   fun():any | nil                       用于获取该值的bound getter
----@field snapshot fun(value:any):any                             用于复制该值，或能产生一个代表该值用于相等测试的值的函数          
----@field equalityTest   fun(before, after):boolean, any 旧值和新值经snapshot处理后传入该函数，相等则返回true，如果不相等返回false，可以多返回一个任意类型的值用于描述两者的区别
+---@field snapshot fun(value:any):any                             用于复制该值, 或能产生一个代表该值用于相等测试的值的函数          
+---@field equalityTest   fun(before, after):boolean, any 旧值和新值经snapshot处理后传入该函数, 相等则返回true, 如果不相等返回false, 可以多返回一个任意类型的值用于描述两者的区别
 
 React._DefaultEntryTemplate = {
     getter = function() return end,
@@ -29,10 +29,10 @@ React._DefaultEntryTemplate = {
 
 ---创建一个ReactEntry
 ---@return ReactEntry
----@param object table       绑定的变量的根，例如 t.var1.var2 的根是 t
----@param path string        绑定的变量的路径，例如 "var1.var2"
----@param optSnapshot function|nil 见ReactEntry定义，默认值为 DeepCopy(t, 1)
----@param optEqualityTest function|nil  见ReactEntry定义，默认值为DeepEqual(t, 1)
+---@param object table       绑定的变量的根, 例如 t.var1.var2 的根是 t
+---@param path string        绑定的变量的路径, 例如 "var1.var2"
+---@param optSnapshot function|nil 见ReactEntry定义, 默认值为 DeepCopy(t, 1)
+---@param optEqualityTest function|nil  见ReactEntry定义, 默认值为DeepEqual(t, 1)
 function React.ReactEntry(object, path, optSnapshot, optEqualityTest)
     if not optEqualityTest then optEqualityTest = React.DefaultEqualityTest end
     if not optSnapshot then optSnapshot = React.DefaultSnapshot end
@@ -60,7 +60,7 @@ function React.CreateReact(optReactEntry)
         reactEntry = nil,  ---@type ReactEntry
         snapshot = nil,    ---@type any
         subscribers = {},  ---@type table<ReactSubscriber, ReactSubscriber> --自指Set
-        subscriberInitialized = {} ---@type table<ReactSubscriber, boolean> 如果一个subscriber一次都还没有接收过更新，那么下次DoReact的时候无论EqualityTest结果如何，这个subscriber都会被调用。其他接收过数据的subscriber则不会。
+        subscriberInitialized = {} ---@type table<ReactSubscriber, boolean> 如果一个subscriber一次都还没有接收过更新, 那么下次DoReact的时候无论EqualityTest结果如何, 这个subscriber都会被调用。其他接收过数据的subscriber则不会。
     }
 
     function reactObj:Init(reactEntry)
@@ -70,7 +70,7 @@ function React.CreateReact(optReactEntry)
         return self
     end
 
-    ---ReactEntry不存在返回nil，数据没有发生变更返回false
+    ---ReactEntry不存在返回nil, 数据没有发生变更返回false
     ---数据变更时返回两个整数successCount, failCount代表执行成功和失败的subscriber数量
     function reactObj:DoReact()
         if not self.reactEntry then return nil end
@@ -86,7 +86,7 @@ function React.CreateReact(optReactEntry)
                 end
             end
 
-            self.snapshot = newSnapshot --虽然EqualityTest通过但是还是更新以下快照，反正都已经计算出来了
+            self.snapshot = newSnapshot --虽然EqualityTest通过但是还是更新以下快照, 反正都已经计算出来了
             return false, 0
         end
 

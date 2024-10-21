@@ -1,4 +1,4 @@
--- 数组的React定义，例如用于列表控件
+-- 数组的React定义, 例如用于列表控件
 ---@class FishyLibs_ReactArray
 local ReactArray = {}
 
@@ -35,7 +35,7 @@ function ReactArray.ReactEntry(object, path, memberSnapshotFunc, memberIdentityF
         ---@type ArrayChanges
         local diff = TableTrace.Diff(kiMapBefore, kiMapAfter)
 
-        -- 测试元素id是否一致（没有添加、删除和移动）
+        -- 测试元素id是否一致(没有添加、删除和移动)
         local bElementsIdentityEqual = (#diff.added + #diff.moved + #diff.removed) == 0
 
         -- 测试元素内容是否一致
@@ -68,10 +68,10 @@ end
 
 ---@class ArrayReactor
 ---@field New fun(self:ArrayReactor, idx: number, data: any)       添加新元素, data是一个memberSnapshot
----@field Put  fun(self:ArrayReactor, idx: number, data: any)      放入元素（放入之前取出的元素), data是一个memberSnapshot
+---@field Put  fun(self:ArrayReactor, idx: number, data: any)      放入元素(放入之前取出的元素), data是一个memberSnapshot
 ---@field Delete fun(self:ArrayReactor, idx: number): any          删除元素
----@field Take fun(self:ArrayReactor, idx: number): any            取出元素（之后会重新放入), 返回一个memberSnapshot
----@field Change fun(self:ArrayReactor, idx: number, before, after) 元素内容变化，传入前后memberSnapshot
+---@field Take fun(self:ArrayReactor, idx: number): any            取出元素(之后会重新放入), 返回一个memberSnapshot
+---@field Change fun(self:ArrayReactor, idx: number, before, after) 元素内容变化, 传入前后memberSnapshot
 
 ---@param arrReactor ArrayReactor
 ---@return ReactSubscriber
@@ -79,8 +79,8 @@ function ReactArray.MakeArraySubscriber(arrReactor)
 
     ---@param diff ArrayChanges
     local function ArraySubcriber(before, after, diff)
-        local moveOutActions = {} --要从数组移出的（包括删除和移动的）
-        local moveInActions = {} --要移入数组的（包括添加和移动的）
+        local moveOutActions = {} --要从数组移出的(包括删除和移动的)
+        local moveInActions = {} --要移入数组的(包括添加和移动的)
 
         for _, removeInfo in pairs(diff.removed) do
             table.insert(moveOutActions, {bDelete = true, key = removeInfo.key})
@@ -95,7 +95,7 @@ function ReactArray.MakeArraySubscriber(arrReactor)
             table.insert(moveInActions, {bNew = false, id = moveInfo.identity, key = moveInfo.newKey})
         end
 
-        -- 整理操作，由于数组操作的索引移动，移出操作从高索引到低索引，移入操作从低索引到高索引
+        -- 整理操作, 由于数组操作的索引移动, 移出操作从高索引到低索引, 移入操作从低索引到高索引
         table.sort(moveOutActions, function(a, b) return a.key > b.key end)
         table.sort(moveInActions, function(a, b) return a.key < b.key end)
 

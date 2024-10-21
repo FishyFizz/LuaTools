@@ -2,7 +2,7 @@ local Exclusive = {} ---@class FishyLibs_Exclusive
 
 ---@class ExclusiveChoice
 ---@field key any
----@field onSelect fun(prevKey, data):any data是之前选中项onDeselect函数的返回值，这个函数的返回值就是外界调用Select的返回值
+---@field onSelect fun(prevKey, data):any data是之前选中项onDeselect函数的返回值, 这个函数的返回值就是外界调用Select的返回值
 ---@field onDeselect fun(newKey):any 返回值会传给新选项的onSelect
 
 function Exclusive.Create()
@@ -32,7 +32,7 @@ function Exclusive.Create()
     end
 
     function obj:Select(key)
-        -- key为空，或选项不存在，相当于取消选择
+        -- key为空, 或选项不存在, 相当于取消选择
         if key == nil or self.choices[key] == nil then
             self:Deselect()
             return

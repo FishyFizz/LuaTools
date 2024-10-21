@@ -12,7 +12,7 @@ function Sort.RightPartition(left, right)
     return lr + 1, right
 end
 
---- 稳定排序，在原地排，需要复制参考Deep模块的DeepCopy
+--- 稳定排序, 在原地排, 需要复制参考Deep模块的DeepCopy
 function Sort.MergeSort(list, less, left, right)
     if less == nil then less = function(a, b) return a<b end end
     
@@ -66,7 +66,7 @@ function Sort.ThreeWayToLess(threeWayComp)
     return function(a,b) return threeWayComp(a,b) == Sort.ThreeWayCompResult.LESS end
 end
 
----传入按优先级排序的小于判断函数的数组，返回一个小于判断函数
+---传入按优先级排序的小于判断函数的数组, 返回一个小于判断函数
 function Sort.PreferencedLess(lessFuncList)
     local comparators = {}
     for _, less in ipairs(lessFuncList) do
@@ -75,17 +75,17 @@ function Sort.PreferencedLess(lessFuncList)
     return Sort.ThreeWayToLess(Sort.PreferencedThreeWay(comparators))
 end
 
----传入按优先级排序的三向比较函数的数组，返回一个三向比较函数
+---传入按优先级排序的三向比较函数的数组, 返回一个三向比较函数
 function Sort.PreferencedThreeWay(threeWayFuncList)
     return function (a, b)
-        --从第一个条件开始比较，只要不相等就立即返回，相等则继续判断之后的条件
+        --从第一个条件开始比较, 只要不相等就立即返回, 相等则继续判断之后的条件
         for _, comparator in ipairs(threeWayFuncList) do
             local result = comparator(a, b)
             if result ~= Sort.ThreeWayCompResult.EQUAL then 
                 return result
             end
         end
-        --全部判断完还没有结果，返回相等
+        --全部判断完还没有结果, 返回相等
         return Sort.ThreeWayCompResult.EQUAL
     end
 end

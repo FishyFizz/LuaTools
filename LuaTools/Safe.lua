@@ -1,4 +1,4 @@
--- 安全操作库，包括Getter/Setter/Caller等
+-- 安全操作库, 包括Getter/Setter/Caller等
 
 ---@class FishyLibs_Safe
 local Safe = {}
@@ -19,10 +19,10 @@ end
 
 -- 安全Setter
 -- 例如 SafeSetter(t, {"key1", "key2"}, 1) 代表 t.key1.key2 = 1
--- 1. 其中任何一层不存在或无法索引（比如t.key1不是一个table），都返回false
+-- 1. 其中任何一层不存在或无法索引(比如t.key1不是一个table), 都返回false
 -- 2. 如果bCreatePathAlong则会创建不存在的子表
---    1. 如果t.key1不存在，则自动创建t.key1 = {}然后继续执行
---    2. 如果t.key1已存在且不是一个table，失败返回false
+--    1. 如果t.key1不存在, 则自动创建t.key1 = {}然后继续执行
+--    2. 如果t.key1已存在且不是一个table, 失败返回false
 -- 3. 成功返回true
 function Safe.SafeSetter(t, pathTable, value, bCreatePathAlong)
     if type(t) ~= "table" then return false end
@@ -31,7 +31,7 @@ function Safe.SafeSetter(t, pathTable, value, bCreatePathAlong)
     -- 先遍历到路径
     for i = 1, (#pathTable - 1) do
 
-        -- 下一层不存在，如果允许创建路径则产生空表，否则失败
+        -- 下一层不存在, 如果允许创建路径则产生空表, 否则失败
         if path[pathTable[i]] == nil then
             if bCreatePathAlong then
                 path[pathTable[i]] = {}
@@ -42,7 +42,7 @@ function Safe.SafeSetter(t, pathTable, value, bCreatePathAlong)
 
         path = path[pathTable[i]]
 
-        -- 路径不是表而是值，失败
+        -- 路径不是表而是值, 失败
         if type(path) ~= "table" then
             return false
         end
@@ -64,7 +64,7 @@ function Safe.SafeCall(func, optErrHandler, ...)
     if not optErrHandler then optErrHandler = function(err)end end
 
     if type(func) ~= "function" then 
-        optErrHandler("Trying to call a non-function! Actual type is: ", type(func)) 
+        optErrHandler("Trying to call a non-function! Actual type is: "..type(func)) 
         return 
     end
 
@@ -87,7 +87,7 @@ end
 
 -- 安全成员函数Caller
 function Safe.SafeMethodCaller(t, pathTable, optErrHandler, ...)
-    -- 复制安全Getter，但是同时获取最后一层的值（成员函数）和其上一层的值（传入函数的self）
+    -- 复制安全Getter, 但是同时获取最后一层的值(成员函数)和其上一层的值(传入函数的self)
     local prevVal = nil
     local val = t
     for _, key in ipairs(pathTable) do
@@ -170,13 +170,13 @@ function Safe.MakeBoundSetter(obj, path)
     end
 end
 
--- 返回一个预设路径和错误处理函数的SafeCaller，用于不带self的成员函数
+-- 返回一个预设路径和错误处理函数的SafeCaller, 用于不带self的成员函数
 function Safe.MakeCaller(path, optErrHandler)
     local pt = Safe.MakePathTable(path)
     return function(t, ...) return Safe.SafeCaller(t, pt, optErrHandler, ...) end
 end
 
--- 返回一个预设路径和错误处理函数的SafeCaller，用于带self的成员函数
+-- 返回一个预设路径和错误处理函数的SafeCaller, 用于带self的成员函数
 function Safe.MakeMethodCaller(path, optErrHandler)
     local pt = Safe.MakePathTable(path)
     return function(t, ...) return Safe.SafeMethodCaller(t, pt, optErrHandler, ...) end
