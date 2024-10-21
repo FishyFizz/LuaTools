@@ -104,7 +104,7 @@ function Safe.SafeMethodCaller(t, pathTable, optErrHandler, ...)
 end
 
 -- 从路径产生路径表，例如 "hello.world" -> {"hello", "world"}
-function Safe.MakePathTable(path)
+function Safe.MakePathTableFromString(path)
     local cachedPath = {}
     local begin = 1
 
@@ -116,6 +116,29 @@ function Safe.MakePathTable(path)
     end
     table.insert(cachedPath, string.sub(path, begin, #path))
     return cachedPath
+end
+
+function Safe.MakePathTable(...)
+    local args = {...}
+    local result = {}
+    for _, arg in ipairs(args) do
+        if type(arg) == "string" then
+            Table.Concat(result, Safe.MakePathTableFromString(arg)) 
+        else
+            table.insert(result, arg)
+        end
+    end
+    return result
+end
+
+function Safe.PathRelation(a, b)
+    for i = 1, min(#a, #b) do
+        if a[i] ~= b[i] then return {unrelated = true} end
+    end
+
+    if #a > #b then return {child = true} end
+    if #a == #b then return {equal = true} end
+    if #a < #b then return {parent = true} end
 end
 
 -- 返回一个预设路径的SafeGetter
