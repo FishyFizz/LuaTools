@@ -1,7 +1,7 @@
 local Property = {}
 local ComputedObject    = require("LuaTools.DataObjects.ComputedObject")
 local DataObject        = require("LuaTools.DataObjects.DataObject")
-local Meta              = require("LuaTools.Meta")
+local Meta              = require("LuaTools.Meta.Meta")
 
 Property.Invalidate = {} -- 占位用
 
@@ -38,13 +38,9 @@ function Property.EnableProperty(obj, newIndexPolicy)
         end
 
         if mt.getter[key] then                                  -- 优先访问 property getter
-            return mt.getter[key](obj, key)
+            return mt.getter[key](obj)
         elseif mt.oldMt and mt.oldMt.__index then               -- 其次尝试 obj 原来的元表 __index
-            if type(mt.oldMt.__index) == "table" then
-                return mt.oldMt.__index[key]
-            elseif type(mt.oldMt.__index) == "function" then
-                return mt.oldMt.__index(obj, key)
-            end
+            return Meta.IndexWith(obj, key, mt.oldMt.__index)
         else                                                    
             return rawget(obj, key)                             -- 最后 rawget
         end
@@ -89,7 +85,7 @@ function Property.EnableProperty(obj, newIndexPolicy)
         local function iterator(_, prevKey)
             local key, getter = next(mt.getter, prevKey)
             if key == nil then return nil end
-            return key, getter(obj, key)
+            return key, getter(obj)
         end
         return iterator
     end

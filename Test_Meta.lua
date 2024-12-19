@@ -1,4 +1,5 @@
-local Meta = require "LuaTools.Meta"
+local Meta = require "LuaTools.Meta.Meta"
+local Proxy = require "LuaTools.Meta.Proxy"
 
 local baseMeta = {
     __index = function(obj, key)
@@ -93,8 +94,8 @@ end
 print("\n\n8 ------------------------------------------------------")
 local extraPairs1 = {
     extraKey1 = "obj1.extraValue1",
-    extraKey2 = "obj1.extraValue1",
-    extraKey3 = "obj1.extraValue1",
+    extraKey2 = "obj1.extraValue2",
+    extraKey3 = "obj1.extraValue3",
     extraNum  = 111,
 }
 Meta.IndexCombine(obj1, extraPairs1, true)
@@ -125,3 +126,26 @@ baseMeta.__lt = function(obj1, obj2)
     return obj1.extraNum < obj2.extraNum
 end
 print(obj1<obj2)
+
+print("\n\n10 ------------------------------------------------------")
+local proxy1 = Proxy.Create(obj1, 
+    function(obj, key) print("OnRead: ", obj, key)                  return Proxy.Proceed end,
+    function(obj, key, value) print("OnWrite: ", obj, key, value)   return Proxy.Proceed end
+)
+
+local proxy2 = Proxy.Create(obj2, 
+    function(obj, key) print("OnRead: ", obj, key)                  return Proxy.Proceed end,
+    function(obj, key, value) print("OnWrite: ", obj, key, value)   return Proxy.Proceed end
+)
+
+proxy1.sum = proxy1.extraNum + proxy2.extraNum
+
+print("\n\n11 ------------------------------------------------------")
+-- proxy 的 pairs 转发
+for k, v in pairs(proxy1) do
+    print(k, v)
+end
+
+print("\n\n11 ------------------------------------------------------")
+-- proxy 的元表方法继承
+print(proxy1 < proxy2)
