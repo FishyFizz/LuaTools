@@ -1,4 +1,4 @@
-local GraphNode = require "LuaTools.GraphNode"
+local GraphNode = require "LuaTools.Graph.GraphNode"
 
 ---@class ComputedObject
 local ComputedObject = {}

@@ -75,7 +75,7 @@ function Property.EnableProperty(obj, newIndexPolicy)
                 Property.AddGetSetPropertyByInitStruct(obj, key, Property.SimpleProperty(value))
             elseif mt.newIndexPolicy == ENewIndexPolicy.ComputedProperty then
                 Property.AddGetSetPropertyByInitStruct(obj, key, Property.ComputedProperty(function()end))
-                obj.key = value
+                obj[key] = value
             end
 
         end
