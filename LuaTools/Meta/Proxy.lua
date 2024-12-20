@@ -1,8 +1,8 @@
 local Meta = require "LuaTools.Meta.Meta"
 local Proxy = {}
 
-Proxy.Handled  = {}
-Proxy.Proceed = {}
+Proxy.Handled  = {__fake_constant = true}
+Proxy.Proceed = {__fake_constant = true}
 
 function Proxy.Override(data)
     return {__proxy_override = true, data = data}

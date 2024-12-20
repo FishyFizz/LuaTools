@@ -1,4 +1,4 @@
-local Property          = require "LuaTools.DataObjects.Property"
+local Property          = require "LuaTools.Meta.Property"
 local ComputedObject    = require "LuaTools.DataObjects.ComputedObject"
 
 local function OnNameChanged(newValue) print(string.format("Name changed to %s", newValue)) end
@@ -18,7 +18,7 @@ local rawData = {
 local data = Property.PODtoComputedProperty(rawData)
 
 -- 创建计算属性
-data.averageScore = Property.ComputedProperty(function() return (data.scores.math + data.scores.english)/2 end)
+data.averageScore = ComputedObject.Create(function() data.averageScore = (data.scores.math + data.scores.english)/2 end)
 
 -- 设置依赖属性关系
 -- 从 __property__ 特殊字段访问属性[对象]而不是属性值

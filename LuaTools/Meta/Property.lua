@@ -3,15 +3,13 @@ local ComputedObject    = require("LuaTools.DataObjects.ComputedObject")
 local DataObject        = require("LuaTools.DataObjects.DataObject")
 local Meta              = require("LuaTools.Meta.Meta")
 
-Property.Invalidate = {} -- 占位用
-
 -------------------------------------------------------------------------------------------------------------------------------
 --#region 启用属性 / 直接新建属性(底层，平时不用)
 
 ---@enum ENewIndexPolicy 当一个对象已经启用了属性系统时，选择形如 obj.key = value 创建字段时的默认行为
 Property.ENewIndexPolicy = {
     Field = 1,                  -- 直接用rawset在表中直接新建字段（默认）
-    SimpleProperty = 2,         -- 新增一个简单属性（可直接读直接写、允许监听写入变更，但不支持ComputedObject功能)
+    DataProperty = 2,         -- 新增一个简单属性（可直接读直接写、允许监听写入变更，但不支持ComputedObject功能)
     ComputedProperty = 3,         -- 新增一个缓存属性 (在Transparent的基础上支持ComputedObject功能，可以通过SetProvider将其变为一个计算缓存属性(见ComputedObject))
 }
 local ENewIndexPolicy = Property.ENewIndexPolicy
@@ -25,20 +23,20 @@ function Property.EnableProperty(obj, newIndexPolicy)
     local baseMt = Meta.EnsureMetatable(obj)
     local mt = Meta.MakeForwardedMetatable(baseMt)
 
-    mt.getter = {}                          --每个属性的getter
-    mt.setter = {}                          --每个属性的setter 
+    mt.properties = {}                      --各个属性对象
     mt.deep   = {}                          --记录哪些属性是深赋值属性
-    mt.propertyExtraData = {}               --每个属性的属性对象/额外数据信息
+
     mt.__property_mt = true                 --用于识别对象启用属性系统
     mt.newIndexPolicy = newIndexPolicy      --启用属性系统后 obj.key = value 新建字段的行为
+
     function mt.__index(obj, key)
         -- 特例：允许通过 __property__ 访问属性对象或额外信息，而不是属性的值
         if key == "__property__" then
-            return mt.propertyExtraData
+            return mt.properties
         end
 
-        if mt.getter[key] then                                  -- 优先访问 property getter
-            return mt.getter[key](obj)
+        if mt.properties[key] then                                  -- 优先访问 property getter
+            return mt.properties[key]:Get()
         elseif mt.oldMt and mt.oldMt.__index then               -- 其次尝试 obj 原来的元表 __index
             return Meta.IndexWith(obj, key, mt.oldMt.__index)
         else                                                    
@@ -47,52 +45,81 @@ function Property.EnableProperty(obj, newIndexPolicy)
     end
 
     function mt.__newindex(obj, key, value)
-        -- 特例：允许将PropertyInitStruct赋值到一个原本为空的字段，来新建一个property
-        if type(value) == "table" and value.__property_init_struct == true then
-            Property.AddGetSetPropertyByInitStruct(obj, key, value)
+        -- 特例：允许将一个实现了属性接口，并标记了 __property_interface 的对象赋值到一个原本为空的字段，来新建一个property
+        if type(value) == "table" and value.__property_interface == true then
+            mt.properties[key] = value
             return
         end
 
         -- 特例：深赋值属性
-        -- 如果 obj[key] 这个属性，是一个具有属性的表，且value也是一个表
-        -- 则不应当把 obj[key] 直接替换成 value 这个表，而是拷贝 value 的字段值到 obj[key] 这个属性表当中
-        if (mt.deep[key] == true) and (type(value) == "table") and (type(obj[key]) == "table") then
+        -- 如果 obj[key] 这个属性是深赋值属性...
+        if (mt.deep[key] == true) then
+            local processedKeys = {}
             for k, v in pairs(obj[key]) do
                 obj[key][k] = value[k]
+                processedKeys[k] = true
+            end
+            for k, v in pairs(value) do
+                if processedKeys[k] == nil then
+                    obj[key][k] = v
+                end
             end
             return
         end
 
-        if mt.setter[key] then                                  -- 优先访问 property setter
-            return mt.setter[key](obj, value)
-        elseif mt.oldMt and mt.oldMt.__newindex then            -- 其次尝试 obj 原来的元表 __newindex
+        if mt.properties[key] then                                        -- 优先访问 property setter
+            return mt.properties[key]:Set(value)
+        elseif mt.oldMt and mt.oldMt.__newindex then                    -- 其次尝试 obj 原来的元表 __newindex
             return mt.oldMt.__newindex(obj, key, value)
         else
-                                                                -- 最后按NewIndexPolicy描述的行为执行
+                                                                        -- 最后按NewIndexPolicy描述的行为执行
             if mt.newIndexPolicy == ENewIndexPolicy.Field then
                 rawset(obj, key, value)
-            elseif mt.newIndexPolicy == ENewIndexPolicy.SimpleProperty then
-                Property.AddGetSetPropertyByInitStruct(obj, key, Property.SimpleProperty(value))
+            elseif mt.newIndexPolicy == ENewIndexPolicy.DataProperty then
+                Property.AddProperty(obj, key, DataObject.Create(value))
             elseif mt.newIndexPolicy == ENewIndexPolicy.ComputedProperty then
-                Property.AddGetSetPropertyByInitStruct(obj, key, Property.ComputedProperty(function()end))
-                obj[key] = value
+                local propertyObject = ComputedObject.Create(function()end)
+                propertyObject:Set(value)
+                Property.AddProperty(obj, key, propertyObject)
             end
-
         end
     end
 
-    local function PropertyPairs(obj)
+    local function PropertyPairs()
         local function iterator(_, prevKey)
-            local key, getter = next(mt.getter, prevKey)
+            local key, propertyObject = next(mt.properties, prevKey)
             if key == nil then return nil end
-            return key, getter(obj)
+            return key, propertyObject:Get()
         end
         return iterator
     end
+    mt.__pairs = Meta.MakeCombinedPairsMethod({Meta.GetBaseMetatable(mt).__pairs or Meta.rawpairs, PropertyPairs})
 
-    mt.__pairs = Meta.MakeCombinedPairsMethod({Meta.GetBaseMetatable(mt).__pairs, PropertyPairs})
+    local function PropertyLen()
+        local maxIntKey = -1
+        for k in pairs(obj) do
+            if type(k) == "number" and math.floor(k) == k and maxIntKey < k then
+                maxIntKey = k
+            end
+        end
+        return (maxIntKey <= 0) and 0 or maxIntKey
+    end
+    mt.__len = PropertyLen
 
     setmetatable(obj, mt)
+    return obj
+end
+
+function Property.SetDeepAssignment(obj, propertyKey, bDeepAssignment)
+    if not Property.HasPropertyMeta(obj) then return end
+    local mt = getmetatable(obj)
+    mt.deep[propertyKey] = bDeepAssignment and true or nil
+end
+
+function Property.SetDefaultNewIndexPolicy(obj, newIndexPolicy)
+    if Property.HasPropertyMeta(obj) then
+        getmetatable(obj).newIndexPolicy = newIndexPolicy
+    end
 end
 
 -- 判断 obj 是否已经在使用属性系统
@@ -105,31 +132,29 @@ function Property.HasPropertyMeta(obj)
     end
 end
 
----为 obj 添加一个属性(底层方法，平时用 Property.Property() 和 Property.ComputedProperty)
----@param getter                fun(obj:any):any?              应该具有这样的函数声明:  function obj:GetProperty() return propertyValue end
----@param setter                fun(obj:any, newValue:any)     应该具有这样的函数声明:  function obj:SetProperty() ... end
----@param propertyExtraData     any?                           任意值，未来可以通过 obj.\_\_property\_\_.[属性名] 来访问到 (property前后2下划线)
----【尤其注意！】setter 中禁止再写目标属性 (死递归)，禁止用rawset新建与属性有相同名称的字段 (访问无法到达__index和__newindex，属性系统失效)。属性对应的底层值应该具有另外的名称。
-function Property.AddGetSetProperty(obj, key, getter, setter, propertyExtraData)
+-- 为 obj 新增一个属性
+function Property.AddProperty(obj, key, propertyObject)
     if not Property.HasPropertyMeta(obj) then
         Property.EnableProperty(obj)
     end
 
     local mt = getmetatable(obj)
-    mt.getter[key] = getter
-    mt.setter[key] = setter
-    mt.propertyExtraData[key] = propertyExtraData
+    mt.properties[key] = propertyObject
 end
 
-function Property.AddGetSetPropertyByInitStruct(obj, key, initStruct)
-    Property.AddGetSetProperty(obj, key, initStruct.getter, initStruct.setter, initStruct.extraData)
+-- 从 obj 删除一个属性
+function Property.RemoveProperty(obj, key)
+    if not Property.HasPropertyMeta(obj) then return end
+    local mt = getmetatable(obj)
+    mt.properties[key] = nil
+    obj[key] = nil
 end
 
 --#endregion
 -------------------------------------------------------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------------------------------------------------------
---#region 通过PropertyInitStruct新建属性(平时用)
+--#region 基础属性
 
 ---将该函数的返回值赋值给一个已经启用属性系统的对象的空字段，可以新建一个普通属性
 ---使用方法：obj.[属性名] = Property(getter, setter)
@@ -138,76 +163,15 @@ end
 ---obj.[属性名] = data  相当于 obj:setter(data)
 ---obj.__property__.[属性名] 访问 extraData
 ---
----@param getter                fun(obj:any):any?              应该具有这样的函数声明:  function obj:GetProperty() return propertyValue end
----@param setter                fun(obj:any, newValue:any)     应该具有这样的函数声明:  function obj:SetProperty() ... end
+---@param getter fun():any?
+---@param setter fun(newValue:any)
 ---【尤其注意！】setter 中禁止再写目标属性 (死递归)，禁止用rawset新建与属性有相同名称的字段 (访问无法到达__index和__newindex，属性系统失效)。属性对应的底层值应该具有另外的名称。
 function Property.Property(getter, setter, extraData)
     return {
-        __property_init_struct = true,
-        getter = getter,
-        setter = setter,
+        __property_interface = true,
+        Get = function(self) return getter() end,
+        Set = function(self, value) setter(value) end,
         extraData = extraData
-    }
-end
-
----将该函数的返回值赋值给一个已经启用属性系统的对象的空字段，可以新增一个简单属性
----
----使用方法：obj.[属性名] = Property.SimpleProperty(getter, setter)
----obj.__property__.[属性名] 访问 DataObject
----
----简单属性：底层实现为DataObject，无特别的getter和setter，可直接读直接写、允许监听写入变更，但不支持ComputedObject功能
-function Property.SimpleProperty(value)
-    local dataObject = DataObject.Create(value)
-    return {
-        __property_init_struct = true,
-        getter = function() return dataObject:Get() end,
-        setter = function(owner, value) dataObject:Set(value) end,
-        extraData = dataObject
-    }
-end
-
----将该函数的返回值赋值给一个已经启用属性系统的对象的空字段，可以新增一个缓存属性
----缓存属性：底层实现为ComputedObject，可配置为数据访问需要时才计算，或依赖数据更新时立即计算。计算后保持值直到被手动设置或刷新
----
----使用方法：obj.[缓存属性名] = Property.ComputedProperty(getter, setter)
----obj.__property__.[属性名] 访问 ComputedObject
----
----obj.[缓存属性名]                         相当于 computedObject:Get()
----obj.[缓存属性名] = data                  相当于 computedObject:Set(data)
----obj.[缓存属性名] = Property.Invalidate   相当于 computedObject:Invalidate()
----
----创建缓存属性以后，可以通过 obj.\_\_property\_\_.[缓存属性名] 访问缓存对象（详情查阅 Compute 库）
----@param fCompute  function?               该属性的值需要被计算的时候，fCompute将会被调用。fCompute应当返回一个任意值，如果计算失败应当返回 Property.Invalidate。
-function Property.ComputedProperty(fCompute, ...)
-    if fCompute == nil then fCompute = function() end end
-    local computeArgs = {...}
-
-    -- 缓存对象的 Provider 就是用 fCompute 计算出值，然后Set
-    -- Property.Invalidate 代表缓存失效
-    local function computeProvider(computedObject)
-        local result = fCompute(table.unpack(computeArgs))
-        if result == Property.Invalidate then
-            computedObject:Fail()
-        else
-            computedObject:Set(result)
-        end
-    end
-
-    local computedObject = ComputedObject.Create(computeProvider)
-
-    return {
-        __property_init_struct = true,
-        getter = function(_) return computedObject:Get() end,
-        setter = function(_, value)
-            if value == Property.Invalidate then
-                computedObject:Invalidate()
-            else
-                computedObject:Set(value)
-            end
-        end,
-
-        -- 之后可以用 obj.__property__.computedPropertyKey 访问缓存对象
-        extraData = computedObject,
     }
 end
 
@@ -224,32 +188,22 @@ setmetatable(Property, {__call = Property.__call_Property})
 --#region 将普通字段转换为属性/普通数据表转换为属性表
 
 ---将 obj 的一个普通字段变成简单属性，保持当前的值
-function Property.ToSimpleProperty(obj, key)
+function Property.ToDataProperty(obj, key)
     local dataObject = DataObject.Create(obj[key])
-    obj[key] = nil
-
-    Property.AddGetSetProperty(obj, key, 
-        function() return dataObject:Get() end, 
-        function(owner, value) dataObject:Set(value) end,
-        dataObject
-    )
+    Property.RemoveProperty(obj, key)
+    obj[key] = dataObject
 end
 
----将 obj 的一个字段变成缓存属性，保持当前的值
+---将 obj 的一个字段变成计算属性，保持当前的值
 function Property.ToComputedProperty(obj, key, optComputeFunc)
-    local computedObject = ComputedObject.Create(optComputeFunc or function() end) -- 默认provider不做任何操作
+    local computedObject
     if optComputeFunc then
-        computedObject:Get()
+        computedObject = ComputedObject.Create(optComputeFunc)
     else
-        computedObject:Set(obj[key])
+        computedObject = ComputedObject.CreateWithData(obj[key])
     end
-    obj[key] = nil
-
-    Property.AddGetSetProperty(obj, key, 
-        function() return computedObject:Get() end, 
-        function(owner, value) computedObject:Set(value) end,
-        computedObject
-    )
+    Property.RemoveProperty(obj, key)
+    obj[key] = computedObject
 end
 
 ---将一个POD表处理成一个拥有相同数据的对象，且该对象中的每一个字段都是缓存属性
@@ -265,11 +219,9 @@ function Property.PODtoComputedProperty(t, convertDepth)
 
     for k, v in pairs(t) do
         if type(v) == "table" then
-            obj[k] = Property.ComputedProperty()
-            obj[k] = Property.PODtoComputedProperty(v, convertDepth and convertDepth-1 or nil)
+            obj[k] = ComputedObject.CreateWithData(Property.PODtoComputedProperty(v, convertDepth and convertDepth-1 or nil))
         else
-            obj[k] = Property.ComputedProperty()
-            obj[k] = v
+            obj[k] = ComputedObject.CreateWithData(v)
         end
     end
 
@@ -281,18 +233,17 @@ end
 ---convertDepth 为空时：递归转换
 ---注意：这个转换不改变t，而是返回一个具有相同结构和数据，但启用了简单属性的拷贝。
 ---@param convertDepth integer?
-function Property.PODtoSimpleProperty(t, convertDepth)
+function Property.PODtoDataProperty(t, convertDepth)
     if convertDepth == 0 then return t end
 
     local obj = {}
-    Property.EnableProperty(obj, ENewIndexPolicy.SimpleProperty)
+    Property.EnableProperty(obj, ENewIndexPolicy.DataProperty)
 
     for k, v in pairs(t) do
         if type(v) == "table" then
-            obj[k] = Property.SimpleProperty()
-            obj[k] = Property.PODtoSimpleProperty(v, convertDepth and convertDepth-1 or nil)
+            obj[k] = DataObject.Create(Property.PODtoDataProperty(v, convertDepth and convertDepth-1 or nil))
         else
-            obj[k] = Property.ComputedProperty(v)
+            obj[k] = DataObject.Create(v)
         end
     end
 
@@ -301,5 +252,9 @@ end
 
 --#endregion
 -------------------------------------------------------------------------------------------------------------------------------
+
+function Property.EmptyObject()
+    return Property.EnableProperty({})
+end
 
 return Property

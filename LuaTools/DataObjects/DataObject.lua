@@ -8,8 +8,9 @@ local log = function() end
 function DataObject.Create(optData)
     ---@class DataObject
     local obj = {
+        __property_interface = true, ---DataObject类实现了属性接口
         _data = optData,             ---@type any
-        _listeners = {},     ---@type table<fun(data)>
+        _listeners = {},             ---@type table<fun(data)>
         _dbgName = nil,              ---@type string?
         _overrideSetter = nil,       ---@type function?
         _overrideGetter = nil,       ---@type function?

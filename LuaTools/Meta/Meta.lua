@@ -23,7 +23,7 @@ Meta.ForwardFunctionNames = {
 }
 
 -- 相当于 pairs，但是不会尝试调用 t 的元表 __pairs 实现
-local function rawpairs(t)
+function Meta.rawpairs(t)
     return next, t, nil
 end
 
@@ -34,7 +34,7 @@ Meta.DefaulMetaFunctionImp = {
     __len       = rawlen,
     __eq        = rawequal,
     __newindex  = rawset,
-    __pairs     = rawpairs,
+    __pairs     = Meta.rawpairs,
     __gc        = nop,
     __close     = nop,
 }

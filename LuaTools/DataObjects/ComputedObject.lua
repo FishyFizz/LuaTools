@@ -2,6 +2,7 @@ local GraphNode = require "LuaTools.Graph.GraphNode"
 
 ---@class ComputedObject
 local ComputedObject = {}
+ComputedObject.INVALID = {__fake_constant = true} -- 占位用
 
 ---@enum ComputeBatchChangeType
 ComputedObject.ChangeType = {
@@ -119,6 +120,8 @@ end
 function ComputedObject.Create(optProvider)
     ---@class ComputedObject : DataObject
     local obj = {
+        __property_interface     = true, ---ComputedObject类实现了属性接口
+
         _data                    = nil,                     ---@type any                                 DataObject接口
         _listeners               = {},                      ---@type table<fun(data, bValid), boolean>   DataObject接口
         _dbgName                 = nil,                     ---@type string?                             DataObject接口
@@ -138,6 +141,12 @@ function ComputedObject.Create(optProvider)
     })
     obj:SetProvider(optProvider or obj._EmptyProvider)
 
+    return obj
+end
+
+function ComputedObject.CreateWithData(optData)
+    local obj = ComputedObject.Create(function()end)
+    obj:Set(optData)
     return obj
 end
 
@@ -183,6 +192,12 @@ function ComputedObject:IsValid()
 end
 
 function ComputedObject:Set(data)
+    -- TODO: 赋值为空的时候真的应该invalidate吗？Lua语境中经常有nil有实际意义的情况...
+    if data == ComputedObject.INVALID or data == nil then
+        self:Invalidate()
+        return
+    end
+
     -- 不用更新
     if self._valid and (self._data == data) then return end
 
