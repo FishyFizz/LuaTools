@@ -1,7 +1,12 @@
 -- 安全操作库, 包括Getter/Setter/Caller等
-
 ---@class FishyLibs_Safe
 local Safe = {}
+
+local Table = require("LuaTools.Table")
+
+local function min(a,b)
+    return a<b and a or b
+end
 
 -- 安全Getter
 -- 例如 SafeGetter(t, {"key1", "key2"}) 返回 t.key1.key2
@@ -12,6 +17,7 @@ function Safe.SafeGetter(t, pathTable)
         if type(val) ~= "table" then
             return nil
         end
+        if key == nil then return nil end
         val = val[key]
     end
     return val
@@ -30,23 +36,27 @@ function Safe.SafeSetter(t, pathTable, value, bCreatePathAlong)
     
     -- 先遍历到路径
     for i = 1, (#pathTable - 1) do
+        local key = pathTable[i]
+        if key == nil then return false end
 
         -- 下一层不存在, 如果允许创建路径则产生空表, 否则失败
-        if path[pathTable[i]] == nil then
+        if path[key] == nil then
             if bCreatePathAlong then
-                path[pathTable[i]] = {}
+                path[key] = {}
             else
                 return false
             end
         end
 
-        path = path[pathTable[i]]
+        path = path[key]
 
         -- 路径不是表而是值, 失败
         if type(path) ~= "table" then
             return false
         end
     end
+
+    if pathTable[#pathTable] == nil then return false end
 
     -- 设置值
     path[pathTable[#pathTable]] = value
@@ -103,7 +113,7 @@ function Safe.SafeMethodCaller(t, pathTable, optErrHandler, ...)
     return Safe.SafeCall(func, optErrHandler, caller, ...)
 end
 
--- 从路径产生路径表，例如 "hello.world" -> {"hello", "world"}
+-- 从路径产生路径表,例如 "hello.world" -> {"hello", "world"}
 function Safe.MakePathTableFromString(path)
     local cachedPath = {}
     local begin = 1
@@ -119,9 +129,17 @@ function Safe.MakePathTableFromString(path)
 end
 
 function Safe.MakePathTable(...)
-    local args = {...}
+    local abbrPath = {...}
+    return Safe.ExpandAbbrevPathTable(abbrPath)
+end
+
+---@param abbrPath string | any[] | nil
+function Safe.ExpandAbbrevPathTable(abbrPath)
+    if abbrPath == nil then return {} end
+    if type(abbrPath) == "string" then return Safe.MakePathTableFromString(abbrPath) end
+
     local result = {}
-    for _, arg in ipairs(args) do
+    for _, arg in ipairs(abbrPath) do
         if type(arg) == "string" then
             Table.Concat(result, Safe.MakePathTableFromString(arg)) 
         else
@@ -181,5 +199,43 @@ function Safe.MakeMethodCaller(path, optErrHandler)
     local pt = Safe.MakePathTable(path)
     return function(t, ...) return Safe.SafeMethodCaller(t, pt, optErrHandler, ...) end
 end
+
+function Safe.Get(obj, ...)
+    return Safe.SafeGetter(obj, Safe.ExpandAbbrevPathTable({...}))
+end
+
+-- 删除字段，然后沿途删除所有为空的表，t不会被删除
+function Safe.RecursiveRemove(t, pathTable)
+    if type(t) ~= "table" then return false end
+    local path = t
+    
+    -- 确保该字段所在的上一层存在
+    local visitedTablesInfo = {}
+    for i = 1, #pathTable-1 do
+        local currKey = pathTable[i]
+        if currKey == nil then return false end
+
+        if type(path[currKey]) ~= "table" then
+            return false
+        end
+
+        table.insert(visitedTablesInfo, {table = path[currKey], keyInParent = currKey, parent = path})
+        path = path[currKey]
+    end
+
+    if pathTable[#pathTable] == nil then return false end
+    -- 删除字段
+    path[pathTable[#pathTable]] = nil
+
+    -- 从被删除字段的上一层开始，如果表为空则从再上一层删除该表，然后继续向上遍历清理空表
+    for i = #visitedTablesInfo, 1, -1 do
+        if next(visitedTablesInfo[i].table, nil) == nil then
+            visitedTablesInfo[i].parent[visitedTablesInfo[i].keyInParent] = nil
+        end
+    end
+
+    return true
+end
+
 
 return Safe

@@ -14,7 +14,7 @@ local TableTrace = require("LuaTools.TableTrace") ---@type FishyLibs_TableTrace
 ---@class ArrayChanges : TableDiffResult
 ---@field elemChanges ElementChangeInfo[]
 
-function ReactArray.ReactEntry(object, path, memberSnapshotFunc, memberIdentityFunc, memberEqualityTest)
+function ReactArray.ReactEntry(getter, memberSnapshotFunc, memberIdentityFunc, memberEqualityTest)
     if not memberSnapshotFunc then memberSnapshotFunc = Deep.MakeDeepCopier(1) end
     if not memberEqualityTest then memberEqualityTest = Deep.MakeDeepEqualityTest(1) end
     if not memberIdentityFunc then memberIdentityFunc = function(x) return x end end
@@ -59,7 +59,7 @@ function ReactArray.ReactEntry(object, path, memberSnapshotFunc, memberIdentityF
     end
 
     return {
-        getter = Safe.MakeBoundGetter(object, path),
+        getter = getter,
         snapshot = ArraySnapshot,
         equalityTest = ArrayEqualityTest,
     }

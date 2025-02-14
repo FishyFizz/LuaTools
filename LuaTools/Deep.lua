@@ -9,7 +9,8 @@ local Safe = require("LuaTools.Safe") ---@type FishyLibs_Safe
 ---maxDepth为0时, 相当于直接比较 x == y
 ---maxDepth为1时, 用默认 == 比较x和y当中的字段
 ---依此类推
-function Deep.DeepEqual(x, y, maxDepth)
+function Deep.DeepEqual(x, y, maxDepth, __loopGuard)
+    if __loopGuard == nil then __loopGuard = {} end
 
     -- 递归终结条件：两者类型不相等则全不相等, 非表数据返回直接比对结果
     if type(x) ~= type(y) then return false end
@@ -18,18 +19,24 @@ function Deep.DeepEqual(x, y, maxDepth)
     -- 递归终结条件：已达到最大深度, 不再深比较, 直接比较返回
     if maxDepth and maxDepth == 0 then return x == y end
 
+    -- 递归终结条件：要比较的子表是之前遍历到过的表,存在循环引用,应该要认为是相等的
+    if __loopGuard[x] == y then return true end
+
+    -- 先把当前比对的表加入loopGuard
+    __loopGuard[x] = y
+
     -- 对每个x的成员, 看y中对应成员是否深相等
     local setOfComparedKeys = {}
     for k, _ in pairs(x) do
         setOfComparedKeys[k] = true
-        if not Deep.DeepEqual(x[k], y[k], maxDepth and (maxDepth-1) or nil) then return false end
+        if not Deep.DeepEqual(x[k], y[k], maxDepth and (maxDepth-1) or nil, __loopGuard) then return false end
     end
 
     -- 对每个y的成员, 看x中对应成员是否深相等(跳过x中出现过的key, 已经比对过)
     for k, _ in pairs(y) do
         if not setOfComparedKeys[k] then --跳过已经比对过的部分
             setOfComparedKeys[k] = true
-            if not Deep.DeepEqual(x[k], y[k], maxDepth and (maxDepth-1) or nil) then return false end
+            if not Deep.DeepEqual(x[k], y[k], maxDepth and (maxDepth-1) or nil, __loopGuard) then return false end
         end
     end
 
@@ -41,7 +48,9 @@ end
 ---maxDepth为0时, 相当于直接返回val。
 ---maxDepth为1时, 返回一个内容和val相同的表, 但里面的每一个子表和val中的子表是相同的引用。
 ---依此类推
-function Deep.DeepCopy(val, maxDepth)
+function Deep.DeepCopy(val, maxDepth, __refRedirectTable)
+    if __refRedirectTable == nil then __refRedirectTable = {} end
+
     -- 超过最大深拷贝层数, 即使可能是表引用, 也直接返回原值
     if maxDepth and maxDepth == 0 then
         return val
@@ -50,11 +59,18 @@ function Deep.DeepCopy(val, maxDepth)
     -- 不是表引用, 直接返回原值
     if type(val) ~= "table" then return val end
 
+    -- 是表引用, 且该表已经在本次操作中被深拷贝过,则直接重定向（这可以避免循环引用导致的DeepCopy无限复制,同时保留原表结构中的引用关系）
+    if __refRedirectTable[val] ~= nil then
+        return __refRedirectTable[val]
+    end
+
     -- 深拷贝流程
     local result = {}
+    __refRedirectTable[val] = result
     for k, v in pairs(val) do
-        result[k] = Deep.DeepCopy(v, maxDepth and (maxDepth - 1) or nil)
+        result[k] = Deep.DeepCopy(v, maxDepth and (maxDepth - 1) or nil, __refRedirectTable)
     end
+
     return result
 end
 

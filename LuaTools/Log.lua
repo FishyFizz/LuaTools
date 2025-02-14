@@ -28,14 +28,10 @@ function Log.ArgsToString(...)
     return logText
 end
 
-function Log.Indent(str, n, bMultiline)
+function Log.Indent(str, n)
     n = n or 0
     bMultiline = bMultiline == nil and true or bMultiline
-
     str = string.rep("    ", n) .. str
-    if bMultiline then
-        str = string.gsub(str, "\n", "\n    ")
-    end
     return str
 end
 
@@ -116,11 +112,8 @@ function LogContext:_DoLog(severity, verbosity, ...)
     local logLines  = self.shouldSplitLines and Log.StrSplit(logString, "\n") or {logString}
 
     for i, line in ipairs(logLines) do
-        if i < #logLines then
-            logImpl(self.prefix.." "..Log.Indent(line, self.indentDepth).." (...)") -- 只要不是最后一行就在行尾添加 (...) 提示这是接续的日志
-        else
-            logImpl(self.prefix.." "..Log.Indent(line, self.indentDepth))
-        end
+        local addPlusMarkAfterFirstLine = (i > 1) and "+" or ""
+        logImpl(self.prefix.." "..addPlusMarkAfterFirstLine..Log.Indent(line, self.indentDepth))
     end
 end
 

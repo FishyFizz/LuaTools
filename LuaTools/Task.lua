@@ -1,11 +1,4 @@
-local Log = require "LuaTools.Log"
 local Task = {}
-
-local logctx = Log.CreateLogContext("[LuaTools.Task]", print)
-local log = logctx:MakeLogFunc(Log.ELogSeverity.Info, 1)
-local logIncDepth = logctx:MakeScopeFunc(Log.ELogSeverity.Info, 1)
-local logDecDepth = function() logctx:ExitScope() end
-
 
 ---@class TaskPrereqInfo
 ---@field task              Task
@@ -56,28 +49,28 @@ function Task.New(taskDef)
 
     ---@private
     function obj:_IncParentAlwaysExecuteCounter()
-        --log("+ parentAlwaysExecuteCount (", self ,")")
+        --logctx:Log("+ parentAlwaysExecuteCount (", self ,")")
         self.inherited.parentAlwaysExecuteCount = self.inherited.parentAlwaysExecuteCount + 1
-        logIncDepth()
+        --logctx:IncDepth()
         if self.inherited.parentAlwaysExecuteCount == 1 then
             for _, followup in pairs(self.followUps) do
                 followup:_IncParentAlwaysExecuteCounter()
             end
         end
-        logDecDepth()
+        --logctx:DecDepth()
     end
 
     ---@private
     function obj:_DecParentAlwaysExecuteCounter()
-        --log("- parentAlwaysExecuteCount (", self ,")")
+        --logctx:Log("- parentAlwaysExecuteCount (", self ,")")
         self.inherited.parentAlwaysExecuteCount = self.inherited.parentAlwaysExecuteCount - 1
-        logIncDepth()
+        --logctx:IncDepth()
         if self.inherited.parentAlwaysExecuteCount == 0 then
             for _, followup in pairs(self.followUps) do
                 followup:_DecParentAlwaysExecuteCounter()
             end
         end
-        logDecDepth()
+        --logctx:DecDepth()
     end
 
     ---@private
@@ -86,60 +79,60 @@ function Task.New(taskDef)
     end
 
     function obj:Invalidate()
-        --log("Task "..tostring(self).." Invalidate")
+        --logctx:Log("Task "..tostring(self).." Invalidate")
         self.state = "pending"
 
-        logIncDepth()
+        --logctx:IncDepth()
         for _, followUp in pairs(self.followUps) do
             followUp:Invalidate()
         end
 
-        logDecDepth()
+        --logctx:DecDepth()
     end
 
     function obj:ResetFailState(bIncludingAllPrereq)
-        --log("Task "..tostring(self).." ResetFailState")
+        --logctx:Log("Task "..tostring(self).." ResetFailState")
         if self.state == "failed" then
             self.state = "pending"
         end
 
-        logIncDepth()
+        --logctx:IncDepth()
         if bIncludingAllPrereq then
             for _, prereqInfo in pairs(self.prereq) do
                 prereqInfo.task:ResetFailState(true)
             end
         end
-        logDecDepth()
+        --logctx:DecDepth()
     end
 
     ---@param task Task
     ---@param bIsOptional boolean
     function obj:AddPrereq(task, bIsOptional)
-        --log("Task "..tostring(self).." AddPrereq: ", tostring(task), " optional=", bIsOptional)
+        --logctx:Log("Task "..tostring(self).." AddPrereq: ", tostring(task), " optional=", bIsOptional)
 
         self.prereq[task] = {task = task, bIsOptional = bIsOptional}
         task.followUps[self] = self
 
-        logIncDepth()
+        --logctx:IncDepth()
         if task:ShouldAlwaysExecute() then
             self:_IncParentAlwaysExecuteCounter()
         end
         self:Invalidate()
-        logDecDepth()
+        --logctx:DecDepth()
     end
 
     ---@param task Task
     function obj:RemovePrereq(task)
-        --log("Task "..tostring(self).." RemovePrereq: ", tostring(task))
+        --logctx:Log("Task "..tostring(self).." RemovePrereq: ", tostring(task))
         self.prereq[task] = nil
         task.followUps[self] = nil
 
-        logIncDepth()
+        --logctx:IncDepth()
         if task:ShouldAlwaysExecute() then
             self:_DecParentAlwaysExecuteCounter()
         end
         self:Invalidate()
-        logDecDepth()
+        --logctx:DecDepth()
     end
 
     ---@param execPolicy TaskExecutionPolicy
@@ -171,48 +164,48 @@ function Task.New(taskDef)
 
     ---@return boolean bSuccess
     function obj:Execute(bInvalidateAndExecute)
-        --log("Task "..tostring(self).." Execute")
-        logIncDepth()
+        --logctx:Log("Task "..tostring(self).." Execute")
+        --logctx:IncDepth()
 
         if bInvalidateAndExecute then
             self:Invalidate()
         end
 
         if self.state == "done" and (not self:ShouldAlwaysExecute()) then
-            --log("Cached state: DONE")
-            logDecDepth()
+            --logctx:Log("Cached state: DONE")
+            --logctx:DecDepth()
             return true
         end
         if self.state == "failed" and self.failureRetryPolicy == "manual" then
-            --log("Cached state: FAILED")
-            logDecDepth()
+            --logctx:Log("Cached state: FAILED")
+            --logctx:DecDepth()
             return false
         end
 
-        --log("Prepareing prereqs")
-        logIncDepth()
+        --logctx:Log("Prepareing prereqs")
+        --logctx:IncDepth()
         local bPrereqReady = true
         for _, prereqInfo in pairs(self.prereq) do
             bPrereqReady = bPrereqReady and ((prereqInfo.task:Execute() == true) or (prereqInfo.bIsOptional == true))
         end
-        logDecDepth()
+        --logctx:DecDepth()
 
         if not bPrereqReady then
             self.state = "failed"
-            log("Prereqs FAILED")
-            logDecDepth()
+            --logctx:Log("Prereqs FAILED")
+            --logctx:DecDepth()
             return false
         end
         
         if self:exec() then
             self.state = "done"
-            log("Task processed and DONE")
-            logDecDepth()
+            --logctx:Log("Task processed and DONE")
+            --logctx:DecDepth()
             return true
         else
             self.state = "failed"
-            log("Task FAILED processing")
-            logDecDepth()
+            --logctx:Log("Task FAILED processing")
+            --logctx:DecDepth()
             return false
         end
     end
